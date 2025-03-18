@@ -1,0 +1,162 @@
+<%- include('layout') %>
+<style>
+  #pagination {
+    margin-top: 20px;
+    text-align: center;
+  }
+  #pagination a {
+    display: inline-block;
+    padding: 8px 12px;
+    margin: 0 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #333;
+    background-color: #fff;
+  }
+  #pagination a:hover,
+  #pagination a.active {
+    background-color: #009879;
+    color: #fff;
+    border-color: #009879;
+  }
+  #searchBox {
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 300px;
+  }
+</style>
+
+<input type="text" id="searchBox" placeholder="Tìm kiếm..." />
+
+<table id="xeTable" class="table">
+  <thead>
+    <tr>
+      <th>Mã Xe</th>
+      <th>Tên Xe</th>
+      <th>Hãng Xe</th>
+      <th>Chuẩn Sạc</th>
+      <th>Thao Tác</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+<div id="pagination"></div>
+
+<div class="card mb-4">
+  <div class="card-header">
+    <h3>Thêm Xe</h3>
+  </div>
+  <div class="card-body">
+    <form action="/admin/xe/create" method="POST">
+      <div class="mb-3">
+        <label class="form-label">Hãng Xe</label>
+        <select class="form-select" name="maHangXe" required>
+          <% hangXes.forEach(hangXe => { %>
+          <option value="<%= hangXe.mahangxe %>">
+            <%= hangXe.tenhangxe %>
+          </option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Tên Xe</label>
+        <input type="text" class="form-control" name="tenXe" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Chuẩn Sạc Hỗ Trợ</label>
+        <div>
+          <% chuanSacs.forEach(chuanSac => { %>
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              name="chuanSacs[]"
+              value="<%= chuanSac.machuansac %>"
+            />
+            <label class="form-check-label">
+              <%= chuanSac.loaisac %> (<%= chuanSac.congsuattoithieu %> - <%=
+              chuanSac.congsuattoida %> kW)
+            </label>
+          </div>
+          <% }); %>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Thêm Xe</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  const xes = <%- JSON.stringify(xes) %>;
+  const chuanSacs = <%- JSON.stringify(chuanSacs) %>;
+  const hangXes = <%- JSON.stringify(hangXes) %>;
+  const rowsPerPage = 15;
+  let currentPage = 1;
+
+    function displayXes(page, filteredXes) {
+      const table = $("#xeTable tbody").empty();
+        const start = (page - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        const displayedXes = filteredXes.slice(start, end);
+        displayedXes.forEach(xe => {
+            const row = $(`<tr>
+                <td>${xe.maxe}</td>
+                <td>${xe.tenxe}</td>
+                <td>${xe.tenhangxe}</td>
+                <td><ul>${xe.chuansac_info.map(info => `<li>${info.loaisac} (${info.congsuattoithieu} - ${info.congsuattoida} kW)</li>`).join('')}</ul></td>
+                <td>
+                  <form method="POST" action="/admin/xe/delete/${xe.maxe}">
+                    <button type="submit" class="delete-btn">Xóa</button>
+                  </form>
+                </td>
+            </tr>`);
+            table.append(row);
+        });
+    }
+
+    function createPagination(totalPages, filteredXes) {
+        const pagination = $("#pagination").empty();
+        for (let i = 1; i <= totalPages; i++) {
+          pagination.append($(`<a href="#">${i}</a>`).click(e => {
+            e.preventDefault();
+            currentPage = i;
+            displayXes(currentPage, filteredXes);
+            createPagination(totalPages, filteredXes);
+          }).toggleClass("active", i === currentPage));
+        }
+      }
+
+    function filterXes(searchText) {
+        if (!searchText) return xes;
+        const isNumeric = !isNaN(searchText) && !isNaN(parseFloat(searchText));
+        const searchTextLower = searchText.toLowerCase();
+        return xes.filter(xe =>
+            isNumeric
+                ? xe.maxe.toString().includes(searchText)
+                : xe.tenxe.toLowerCase().includes(searchTextLower) ||
+                xe.tenhangxe.toLowerCase().includes(searchTextLower) ||
+                xe.chuansac_info.some(info => info.loaisac.toLowerCase().includes(searchTextLower))
+        );
+    }
+
+    function updateTableAndPagination(filteredXes) {
+        displayXes(currentPage, filteredXes);
+        const totalPages = Math.ceil(filteredXes.length / rowsPerPage);
+        createPagination(totalPages, filteredXes);
+    }
+
+
+
+  // Khởi tạo ban đầu
+  updateTableAndPagination(xes);
+
+  $("#searchBox").on("input", () => {
+    const searchText = $("#searchBox").val();
+    const filteredXes = filterXes(searchText);
+    updateTableAndPagination(filteredXes);
+    currentPage = 1;
+  });
+</script>

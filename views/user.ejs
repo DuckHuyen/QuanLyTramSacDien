@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Charging Stations Map</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"
+    />
+    <link rel="stylesheet" href="/css/style.css" />
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="search-container">
+      <input type="text" id="search-box" placeholder="Tìm kiếm trạm sạc..." />
+      <div id="search-results"></div>
+    </div>
+    <a id="accountButton" class="account-button">Tài khoản</a>
+    <div class="map-controls">
+      <button id="showStationsButton" class="control-button">
+        Danh sách trạm
+      </button>
+      <input
+        type="number"
+        id="radiusInput"
+        placeholder="Bán kính(km)"
+        min="1"
+        value="5"
+      />
+    </div>
+    <div id="stationList">
+      <div class="list-header">
+        <span class="list-title">Danh sách trạm gần bạn</span>
+        <button id="exitListButton">Thoát</button>
+      </div>
+      <div id="stationListContent"></div>
+    </div>
+    <button id="exitRoutingButton" onclick="exitRouting()">
+      ↩ Thoát chỉ đường
+    </button>
+
+    <div id="accountPopup" class="account-popup">
+      <form action="/user/info">
+        <button type="submit" id="infoButton">Thông tin</button>
+      </form>
+      <form action="/account/logout">
+        <button type="submit" id="logoutButton">Đăng xuất</button>
+      </form>
+    </div>
+
+    <button id="centerUserButton" title="Định vị">
+      <img
+        src="icon/target.png"
+        title="gps icons"
+        style="width: 20px; height: 20px"
+      />
+    </button>
+
+    <script>
+            const map = L.map('map');
+            let userMarker = null;
+            let routingControl = null;
+            let userPosition = null;
+            let destinationMarker = null;
+            let stationMarkers = [];
+            const userInfo = <%- JSON.stringify(userInfo) %>;
+            const compatibleStations = <%- JSON.stringify(compatibleStations) %>;
+            const otherStations = <%- JSON.stringify(otherStations) %>;
+            const stations = <%- JSON.stringify(stations) %>;
+            const allStations = <%- JSON.stringify(allStations) %>;
+            const exitButton = document.getElementById('exitRoutingButton');
+            const stationList = document.getElementById('stationList');
+            const showStationsButton = document.getElementById('showStationsButton');
+            const radiusInput = document.getElementById('radiusInput');
+            const exitListButton = document.getElementById('exitListButton');
+            const accountButton = document.getElementById('accountButton');
+            const accountPopup = document.getElementById('accountPopup');
+            const infoButton = document.getElementById('infoButton');
+            const logoutButton = document.getElementById('logoutButton');
+            document.getElementById('centerUserButton').addEventListener('click', centerToUser);
+
+            // Hiển thị/Ẩn popup khi nhấn nút "Tài khoản"
+            accountButton.addEventListener('click', () => {
+              accountPopup.style.display =
+              accountPopup.style.display === 'block' ? 'none' : 'block';
+            });
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Tạo icon tùy chỉnh cho vị trí hiện tại
+            const currentLocationIcon = L.divIcon({
+              className: 'current-location-icon',
+              iconSize: [24, 24],
+              iconAnchor: [12, 12]
+            });
+
+            // Tạo icon tùy chỉnh cho điểm đích
+            const destinationIcon = L.divIcon({
+              className: 'destination-icon',
+              iconSize: [24, 24],
+              iconAnchor: [12, 12]
+            });
+
+            var redIcon = L.icon({
+              iconUrl: 'icon/red.png',  // Đường dẫn đến tệp PNG của marker
+              iconSize: [50, 50],  // Kích thước của marker (theo chiều rộng và chiều cao)
+              iconAnchor: [16, 32],  // Điểm neo của marker
+              popupAnchor: [0, -32],  // Vị trí của popup so với marker
+          });
+
+          var blueIcon = L.icon({
+            iconUrl: 'icon/blue.png',  // Đường dẫn đến tệp PNG của marker
+            iconSize: [50, 50],  // Kích thước của marker (theo chiều rộng và chiều cao)
+            iconAnchor: [16, 32],  // Điểm neo của marker
+            popupAnchor: [0, -32],  // Vị trí của popup so với marker
+        });
+
+        var greenIcon = L.icon({
+          iconUrl: 'icon/green.png',  // Đường dẫn đến tệp PNG của marker
+          iconSize: [50,50],  // Kích thước của marker (theo chiều rộng và chiều cao)
+          iconAnchor: [16, 32],  // Điểm neo của marker
+          popupAnchor: [0, -32],  // Vị trí của popup so với marker
+      });
+
+
+            exitListButton.addEventListener('click', () => {
+              stationList.style.display = 'none';
+            });
+            // sử dụng công thức Haversine để tính khoảng cách
+            function calculateDistance(lat1, lon1, lat2, lon2) {
+              const R = 6371;
+              const dLat = (lat2 - lat1) * Math.PI / 180;
+              const dLon = (lon2 - lon1) * Math.PI / 180;
+              const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                       Math.sin(dLon/2) * Math.sin(dLon/2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+              return R * c;
+            }
+
+            function viewStation(marker) {
+              map.setView(marker.getLatLng(), 16);
+              marker.openPopup();
+            }
+
+            function showNearbyStations() {
+              if (!userPosition) {
+                alert("Vui lòng cho phép truy cập vị trí để xem danh sách trạm gần đây");
+                return;
+              }
+
+              const radius = parseFloat(radiusInput.value) || 5;
+              const nearbyStations = allStations
+                .map(station => ({
+                  ...station,
+                  distance: calculateDistance(
+                    userPosition[0],
+                    userPosition[1],
+                    station.vido,
+                    station.kinhdo
+                  )
+                }))
+                .filter(station => station.distance <= radius)
+                .sort((a, b) => a.distance - b.distance);
+
+              const html = nearbyStations.length > 0
+                ? nearbyStations.map(station => `
+                    <div class="station-item">
+                      <strong>${station.tentramsac}</strong><br>
+                      <span class="station-distance">Cách ${station.distance.toFixed(1)} km</span><br>
+                      ${station.diachi}
+                      <div class="station-actions">
+                        <button class="station-btn view-btn" onclick="findAndViewStation(${station.vido}, ${station.kinhdo})">
+                          Xem trạm
+                        </button>
+                        <button class="station-btn route-btn" onclick="createRoute(${station.vido}, ${station.kinhdo})">
+                          Chỉ đường
+                        </button>
+                      </div>
+                    </div>
+                  `).join('')
+                : '<div class="station-item">Không tìm thấy trạm sạc trong bán kính</div>';
+
+              stationListContent.innerHTML = html;
+              stationList.style.display = 'block';
+            }
+
+            function findAndViewStation(lat, lng) {
+              const targetMarker = stationMarkers.find(marker => {
+                const pos = marker.getLatLng();
+                return pos.lat === lat && pos.lng === lng;
+              });
+              if (targetMarker) {
+                viewStation(targetMarker);
+              }
+            }
+
+            showStationsButton.addEventListener('click', showNearbyStations);
+            radiusInput.addEventListener('change', showNearbyStations);
+
+            function updateUserLocation(position) {
+              userPosition = [position.coords.latitude, position.coords.longitude];
+
+              if (userMarker) {
+                map.removeLayer(userMarker);
+              }
+
+              userMarker = L.marker(userPosition, {
+                icon: currentLocationIcon,
+                zIndexOffset: 1000 // Đảm bảo marker luôn hiển thị trên cùng
+              })
+              .addTo(map)
+              .bindPopup('Vị trí của bạn');
+            }
+
+            function centerToUser() {
+              if (userPosition) {
+                map.setView(userPosition, 15);
+              }
+            }
+
+            if ("geolocation" in navigator) {
+              navigator.geolocation.getCurrentPosition(function(position) {
+                updateUserLocation(position);
+                centerToUser();
+
+                if (stations.length > 0) {
+                  createMarker(stations, blueIcon, '');
+              } else {
+                  createMarker(compatibleStations, greenIcon, '(Phù hợp)');
+                  createMarker(otherStations, redIcon, '');
+              }
+              }, function() {
+                map.setView([10.762622, 106.660172], 10);
+                alert("Không thể lấy vị trí của bạn. Vui lòng kiểm tra quyền truy cập vị trí.");
+              });
+
+              navigator.geolocation.watchPosition(function(position) {
+                updateUserLocation(position);
+              });
+            } else {
+              map.setView([10.762622, 106.660172], 10);
+              alert("Trình duyệt của bạn không hỗ trợ định vị.");
+            }
+
+            function exitRouting() {
+              if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+              }
+              if (destinationMarker) {
+                map.removeLayer(destinationMarker);
+                destinationMarker = null;
+              }
+              exitButton.style.display = 'none';
+              centerToUser();
+            }
+
+            function createRoute(destLat, destLng) {
+              map.closePopup();
+              if (!userPosition) {
+                alert("Vui lòng cho phép truy cập vị trí để sử dụng tính năng chỉ đường");
+                return;
+              }
+
+              if (routingControl) {
+                exitRouting();
+              }
+
+              exitButton.style.display = 'block';
+
+              // Tạo marker cho điểm đích
+              destinationMarker = L.marker([destLat, destLng], {
+                icon: destinationIcon
+              }).addTo(map);
+
+              const bounds = L.latLngBounds([
+                [userPosition[0], userPosition[1]],
+                [destLat, destLng]
+              ]);
+
+
+              routingControl = L.Routing.control({
+                waypoints: [
+                  L.latLng(userPosition[0], userPosition[1]),
+                  L.latLng(destLat, destLng)
+                ],
+                router: L.Routing.osrmv1({
+                  serviceUrl: 'https://router.project-osrm.org/route/v1',
+                  profile: 'driving'
+                }),
+                geocoder: L.Control.Geocoder.nominatim(),
+                routeWhileDragging: true,
+                reverseWaypoints: true,
+                showAlternatives: true,
+                createMarker: function() { return null;},
+                altLineOptions: {
+                  styles: [
+                    {color: 'black', opacity: 0.15, weight: 9},
+                    {color: 'white', opacity: 0.8, weight: 6},
+                    {color: 'blue', opacity: 0.5, weight: 2}
+                  ]
+                }
+              }).addTo(map);
+
+              routingControl.on('routesfound', function(e) {
+                const routes = e.routes;
+                const bounds = L.latLngBounds(routes[0].coordinates);
+                map.fitBounds(bounds, {
+                  padding: [50, 50],
+                  maxZoom: 15
+                });
+              });
+            }
+            function createMarker(stations,icon,inf){
+            stations.forEach(station => {
+              const distan = userPosition
+              ? calculateDistance(userPosition[0], userPosition[1], station.vido, station.kinhdo).toFixed(1)
+              : 'N/AA';
+              const openTime = station.giomo ? station.giomo.substring(0, 5) : 'N/A';
+              const closeTime = station.giodong ? station.giodong.substring(0, 5) : 'N/A';
+              const chargingInfo = station.chuansac_info.map(info => {
+                return `${info.loaisac} (${info.congsuattoithieu} - ${info.congsuattoida}) (số lượng: ${info.soluong})`;
+              }).join(', '); // Kết hợp các thông tin chuẩn sạc thành một chuỗi
+              const marker = L.marker([station.vido, station.kinhdo],{
+                icon:icon,
+              })
+                .addTo(map)
+                .bindPopup(`
+                  <img src="${station.img_url}" class="popup-image" onerror="this.src='url_ảnh_mặc_định'"><br>
+                  <b>${station.tentramsac}</b>${inf}   ${distan}km<br>
+                  Hãng: ${station.tenhangxe}<br>
+                  Địa chỉ: ${station.diachi}<br>
+                  Thời gian mở cửa: ${openTime}-${closeTime}<br>
+                  Chuẩn sạc : ${chargingInfo}<br>
+                  <button class="direction-button" onclick="createRoute(${station.vido}, ${station.kinhdo})">
+                    Chỉ đường đến đây
+                  </button>
+                `);
+
+              stationMarkers.push(marker);
+            });
+        }
+
+      const searchBox = document.getElementById('search-box');
+      const searchResults = document.getElementById('search-results');
+      let searchTimeout = null;
+
+      searchBox.addEventListener('input', () => {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(() => {
+              const searchTerm = searchBox.value.trim();
+              if (searchTerm.length > 0) {
+                  displaySearchResults(searchStations(searchTerm));
+              } else {
+                  searchResults.innerHTML = '';
+                  searchResults.style.display = 'none';
+              }
+          }, 300); // Chờ 300ms sau khi người dùng ngừng nhập
+      });
+
+      function searchStations(searchTerm) {
+          // Lấy vị trí hiện tại của người dùng
+          if (!userPosition) {
+              alert("Vui lòng cho phép truy cập vị trí để tìm kiếm.");
+              return [];
+          }
+          const lowerTerm = searchTerm.toLowerCase();
+          // Lọc trực tiếp từ danh sách stations
+          const filteredStations = allStations.filter(station => {
+              return station.tentramsac.toLowerCase().includes(lowerTerm) ||
+                     station.diachi.toLowerCase().includes(lowerTerm) ||
+                     station.tenhangxe.toLowerCase().includes(lowerTerm) ||
+                     station.chuansac_info.some(info => info.loaisac.toLowerCase().includes(lowerTerm));
+          });
+
+          // Sắp xếp theo khoảng cách
+          const sortedStations = filteredStations.map(station => ({
+              ...station,
+              distance: calculateDistance(userPosition[0], userPosition[1], station.vido, station.kinhdo)
+          })).sort((a, b) => a.distance - b.distance);
+
+          return sortedStations;
+      }
+
+      function displaySearchResults(results) {
+          searchResults.innerHTML = '';
+          if (results.length > 0) {
+              results.forEach(station => {
+                  const resultItem = document.createElement('div');
+                  resultItem.classList.add('search-result-item');
+                  resultItem.innerHTML = `
+                      <strong>${station.tentramsac}</strong><br>
+                      <span class="search-result-distance">Cách ${station.distance.toFixed(1)} km</span><br>
+                      Hãng: ${station.tenhangxe}<br>
+                      Địa chỉ: ${station.diachi}<br>
+                      Chuẩn sạc: ${station.chuansac_info.map(info => `${info.loaisac} (${info.congsuattoithieu} - ${info.congsuattoida} kW) (số lượng: ${info.soluong})`).join(', ')}
+                  `;
+                  resultItem.addEventListener('click', () => {
+                      viewStation(stationMarkers.find(marker => marker.getLatLng().lat === station.vido && marker.getLatLng().lng === station.kinhdo));
+                      searchBox.value = '';
+                      searchResults.style.display = 'none';
+                  });
+                  searchResults.appendChild(resultItem);
+              });
+              searchResults.style.display = 'block';
+          } else {
+              searchResults.innerHTML = '<div class="search-result-item">Không tìm thấy kết quả</div>';
+              searchResults.style.display = 'block';
+          }
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,106 @@
+/* Căn chỉnh bảng */
+#stationTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 1em;
+  font-family: Arial, sans-serif;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+#stationTable thead tr {
+  background-color: #009879;
+  color: #ffffff;
+  text-align: left;
+  font-weight: bold;
+}
+
+#stationTable th,
+#stationTable td {
+  padding: 12px 15px;
+  border: 1px solid #dddddd;
+}
+
+#stationTable tbody tr {
+  background-color: #f9f9f9;
+}
+
+#stationTable tbody tr:nth-of-type(even) {
+  background-color: #f3f3f3;
+}
+
+#stationTable tbody tr:hover {
+  background-color: #f1f1f1;
+}
+
+/* Căn chỉnh ul trong bảng */
+#stationTable td ul {
+  padding-left: 20px;
+  margin: 0;
+  list-style-type: disc;
+}
+/* Card layout */
+.card {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin: 20px 0;
+  padding: 20px;
+}
+
+.card-header h3 {
+  margin: 0;
+  color: #009879;
+}
+
+/* Form control */
+.form-label {
+  font-weight: bold;
+  margin-bottom: 5px;
+  display: inline-block;
+  color: #333;
+}
+
+.form-select,
+.form-control {
+  border: 1px solid #cccccc;
+  border-radius: 4px;
+  padding: 8px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-control:focus,
+.form-select:focus {
+  outline: none;
+  border-color: #009879;
+  box-shadow: 0 0 4px rgba(0, 152, 121, 0.5);
+}
+
+/* Button */
+.btn-primary {
+  background-color: #009879;
+  border: none;
+  padding: 10px 20px;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background-color: #007b65;
+}
+
+/* Checkboxes */
+#chuanSacContainer label {
+  font-weight: normal;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#chuanSacContainer input[type="number"] {
+  width: 100px;
+  margin-left: 10px;
+}

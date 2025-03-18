@@ -1,0 +1,40 @@
+<%- include('layout') %>
+<div class="card mb-4">
+  <div class="card-header">
+    <h3>Thêm Hãng Xe</h3>
+  </div>
+  <div class="card-body">
+    <form action="/admin/hangxe/create" method="POST">
+      <div class="mb-3">
+        <label class="form-label">Tên Hãng Xe</label>
+        <input type="text" class="form-control" name="tenHangXe" required />
+      </div>
+      <button type="submit" class="btn btn-primary">Thêm Hãng Xe</button>
+    </form>
+  </div>
+</div>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Mã Hãng Xe</th>
+      <th>Tên Hãng Xe</th>
+      <th>Thao Tác</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% hangXes.forEach(hangXe => { %>
+    <tr>
+      <td><%= hangXe.mahangxe %></td>
+      <td><%= hangXe.tenhangxe %></td>
+      <td>
+        <form
+          method="POST"
+          action="/admin/hangxe/delete/<%= hangXe.mahangxe %>"
+        >
+          <button type="submit" class="delete-btn">Xóa</button>
+        </form>
+      </td>
+    </tr>
+    <% }); %>
+  </tbody>
+</table>

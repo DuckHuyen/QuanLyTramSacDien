@@ -1,0 +1,242 @@
+<%- include('layout') %>
+<style>
+  #pagination {
+    margin-top: 20px;
+    text-align: center;
+  }
+  #pagination a {
+    display: inline-block;
+    padding: 8px 12px;
+    margin: 0 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #333;
+    background-color: #fff;
+  }
+  #pagination a:hover,
+  #pagination a.active {
+    background-color: #009879;
+    color: #fff;
+    border-color: #009879;
+  }
+  #searchBox {
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 300px;
+  }
+</style>
+
+<input type="text" id="searchBox" placeholder="Tìm kiếm..." />
+
+<table id="stationTable">
+  <thead>
+    <tr>
+      <th>Mã Trạm Sạc</th>
+      <th>Tên Trạm Sạc</th>
+      <th>Địa Chỉ</th>
+      <th>Giờ Mở</th>
+      <th>Giờ Đóng</th>
+      <th>Kinh Độ</th>
+      <th>Vĩ Độ</th>
+      <th>Hãng Xe</th>
+      <th>Chuẩn Sạc</th>
+      <th>Thao Tác</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+<div id="pagination"></div>
+
+<div class="card mb-4">
+  <div class="card-header"><h3>Thêm Trạm Sạc</h3></div>
+  <div class="card-body">
+    <form action="/admin/tramsac/create" method="POST">
+      <div class="mb-3">
+        <label class="form-label">Hãng Xe</label>
+        <select class="form-select" name="maHangXe" required>
+          <% hangXes.forEach(h => { %>
+          <option value="<%= h.mahangxe %>"><%= h.tenhangxe %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Thành Phố</label>
+        <select class="form-select" id="thanhPhoSelect" required>
+          <option value="">Chọn thành phố</option>
+          <% thanhPhos.forEach(t => { %>
+          <option value="<%= t.mathanhpho %>"><%= t.tenthanhpho %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Khu Vực</label>
+        <select class="form-select" name="maKhuVuc" id="khuVucSelect" required>
+          <option value="">Chọn khu vực</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Tên Trạm Sạc</label
+        ><input type="text" class="form-control" name="tenTramSac" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Địa Chỉ</label
+        ><input type="text" class="form-control" name="diaChi" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Giờ Mở</label
+        ><input type="time" class="form-control" name="gioMo" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Giờ Đóng</label
+        ><input type="time" class="form-control" name="gioDong" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Kinh Độ</label
+        ><input
+          type="number"
+          step="any"
+          class="form-control"
+          name="kinhDo"
+          required
+        />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Vĩ Độ</label
+        ><input
+          type="number"
+          step="any"
+          class="form-control"
+          name="viDo"
+          required
+        />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">URL Hình Ảnh</label
+        ><input type="text" class="form-control" name="imgUrl" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Chuẩn Sạc</label>
+        <div id="chuanSacContainer">
+          <% chuanSacs.forEach(c => { %>
+          <div class="mb-2">
+            <label
+              ><input
+                type="checkbox"
+                name="chuanSacs[]"
+                value="<%= c.machuansac %>"
+              /><%= c.loaisac %> (<%= c.congsuattoithieu %> - <%=
+              c.congsuattoida %> kW)</label
+            >
+            <input
+              type="number"
+              name="soLuong[]"
+              class="form-control so-luong-input"
+              placeholder="Số lượng"
+              min="1"
+              data-chuansac="<%= c.machuansac %>"
+              disabled
+            />
+          </div>
+          <% }); %>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Thêm Trạm Sạc</button>
+    </form>
+  </div>
+</div>
+
+<script>
+    const stations = <%- JSON.stringify(tramSacs) %>;
+    const rowsPerPage = 15;
+    let currentPage = 1;
+
+    $("#thanhPhoSelect").change(() => {
+      const maThanhPho = $("#thanhPhoSelect").val();
+      if (maThanhPho) $.get(`/admin/khu-vuc/${maThanhPho}`, data => {
+        $("#khuVucSelect").empty().append('<option value="">Chọn khu vực</option>');
+        data.forEach(kv => $("#khuVucSelect").append(`<option value="${kv.makhuvuc}">${kv.tenkhuvuc}</option>`));
+      });
+    });
+
+    $("#chuanSacContainer input[type='checkbox']").change(function() {
+      const numberInput = $(this).closest("div").find('input[type="number"]');
+      numberInput.prop("disabled", !this.checked).val(this.checked ? "" : "");
+    });
+  // Hàm chung cho hiển thị rows và tạo phân trang
+    function setupPagination(table, rows, currentPage, rowsPerPage, filteredStations) {
+      function displayRows(page) {
+        table.empty();
+        const start = (page - 1) * rowsPerPage;
+        rows.slice(start, start + rowsPerPage).appendTo(table);
+      }
+
+      function createPagination(totalPages) {
+        const pagination = $("#pagination").empty();
+        for (let i = 1; i <= totalPages; i++) {
+          pagination.append($(`<a href="#">${i}</a>`).click(e => {
+            e.preventDefault();
+            currentPage = i;
+            displayRows(currentPage);
+            createPagination(totalPages, filteredStations);
+          }).toggleClass("active", i === currentPage));
+        }
+      }
+
+      const totalPages = Math.ceil(rows.length / rowsPerPage);
+      displayRows(currentPage);
+      createPagination(totalPages);
+    }
+
+    function filterStations(searchText) {
+      if (!searchText) return stations;
+      const isNumeric = !isNaN(searchText) && !isNaN(parseFloat(searchText));
+      const searchTextLower = searchText.toLowerCase();
+      return stations.filter(station =>
+        isNumeric ? station.matramsac.toString().includes(searchText) :
+        station.tentramsac.toLowerCase().includes(searchTextLower) ||
+        station.tenhangxe.toLowerCase().includes(searchTextLower) ||
+        station.diachi.toLowerCase().includes(searchTextLower) ||
+        station.chuansac_info.some(info => info.loaisac.toLowerCase().includes(searchTextLower))
+      );
+    }
+    function updateTableAndPagination(filteredStations) {
+      const table = $("#stationTable tbody");
+      table.empty();
+
+      filteredStations.forEach(station => {
+        const row = $(`<tr>
+          <td>${station.matramsac}</td>
+          <td>${station.tentramsac}</td>
+          <td>${station.diachi}</td>
+          <td>${station.giomo}</td>
+          <td>${station.giodong}</td>
+          <td>${station.kinhdo}</td>
+          <td>${station.vido}</td>
+          <td>${station.tenhangxe}</td>
+          <td><ul>${station.chuansac_info.map(info => `${info.loaisac}(${info.congsuattoithieu}-${info.congsuattoida}kW)(số lượng: ${info.soluong})`).join(", ")}</ul></td>
+          <td>
+              <form method="POST" action="/admin/tramsac/delete/${station.matramsac}">
+                 <button type="submit" class="delete-btn">Xóa</button>
+              </form>
+          </td>
+        </tr>`);
+        table.append(row);
+      });
+      const rows = table.children();
+      setupPagination(table, rows, currentPage, rowsPerPage, filteredStations);
+    }
+
+    $("#searchBox").on("input", () => {
+        const searchText = $("#searchBox").val();
+        const filteredStations = filterStations(searchText);
+        updateTableAndPagination(filteredStations);
+      });
+
+      // Hàm khởi tạo khi trang được tải
+      $(document).ready(() => {
+        updateTableAndPagination(stations);
+      });
+</script>
